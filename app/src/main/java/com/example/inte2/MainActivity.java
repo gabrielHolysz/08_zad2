@@ -1,5 +1,6 @@
 package com.example.inte2;
 
+import android.content.Intent;
 import android.os.Bundle;
 import android.widget.ArrayAdapter;
 import android.widget.Button;
@@ -11,7 +12,8 @@ import android.widget.Spinner;
 import android.widget.TextView;
 import android.widget.Toast;
 
-import androidx.appcompat.app.AlertDialog;
+import androidx.activity.result.ActivityResultLauncher;
+import androidx.activity.result.contract.ActivityResultContracts;
 import androidx.appcompat.app.AppCompatActivity;
 
 import com.google.android.material.snackbar.Snackbar;
@@ -25,23 +27,23 @@ public class MainActivity extends AppCompatActivity {
     private RadioGroup rgSize;
     private CheckBox cbCheese, cbMushroom, cbHam;
     private SeekBar sbQuantity;
-    private TextView tvQuantityValue, tvSummary;
+    private TextView tvQuantityValue;
     private EditText etAddress;
-    private Button btnSubmit, btnClear;
+    private Button btnSubmit;
 
-
-    private static class FormState {
-        int crustPosition;
-        int selectedSizeId;
-        boolean cheeseChecked;
-        boolean mushroomChecked;
-        boolean hamChecked;
-        int quantity;
-        String address;
-        String summaryText;
-    }
-
-    private FormState lastState = null;
+    private final ActivityResultLauncher<Intent> summaryLauncher = registerForActivityResult(
+            new ActivityResultContracts.StartActivityForResult(),
+            result -> {
+                if (result.getResultCode() == RESULT_OK) {
+                    // Obsługa przypadku 1: Potwierdzenie zamówienia
+                    Snackbar.make(findViewById(R.id.main), R.string.sent, Snackbar.LENGTH_LONG).show();
+                    clearForm();
+                } else if (result.getResultCode() == RESULT_CANCELED) {
+                    // Obsługa przypadku 2: Rezygnacja / Poprawa danych
+                    Snackbar.make(findViewById(R.id.main), R.string.returned_to_edit, Snackbar.LENGTH_LONG).show();
+                }
+            }
+    );
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -65,8 +67,6 @@ public class MainActivity extends AppCompatActivity {
         tvQuantityValue = findViewById(R.id.tvQuantityValue);
         etAddress = findViewById(R.id.etAddress);
         btnSubmit = findViewById(R.id.btnSubmit);
-        btnClear = findViewById(R.id.btnClear);
-        tvSummary = findViewById(R.id.tvSummary);
     }
 
     private void setUpCrustSpinner() {
@@ -93,16 +93,12 @@ public class MainActivity extends AppCompatActivity {
 
         btnSubmit.setOnClickListener(v -> {
             if (validateForm()) {
-                askForConfirmation();
+                openSummaryActivity();
             }
         });
-
-
-        btnClear.setOnClickListener(v -> askForClearConfirmation());
     }
 
     private boolean validateForm() {
-
         etAddress.setError(null);
 
         if (spCrust.getSelectedItemPosition() == 0) {
@@ -125,84 +121,9 @@ public class MainActivity extends AppCompatActivity {
         return true;
     }
 
-    private void askForConfirmation() {
-        new AlertDialog.Builder(this)
-                .setTitle(R.string.confirm_title)
-                .setMessage(R.string.confirm_message)
-                .setPositiveButton(R.string.yes, (dialog, which) -> submitOrder())
-                .setNegativeButton(R.string.no, null)
-                .show();
-    }
+    private void openSummaryActivity() {
+        String crust = spCrust.getSelectedItem().toString();
 
-    private void submitOrder() {
-        tvSummary.setText(buildSummary());
-
-        Snackbar.make(findViewById(R.id.main), R.string.sent, Snackbar.LENGTH_LONG)
-                .setAction(R.string.undo, v -> tvSummary.setText(""))
-                .show();
-    }
-
-
-    private void askForClearConfirmation() {
-        new AlertDialog.Builder(this)
-                .setTitle(R.string.clear_confirm_title)
-                .setMessage(R.string.clear_confirm_message)
-                .setPositiveButton(R.string.yes, (dialog, which) -> clearForm())
-                .setNegativeButton(R.string.no, null)
-                .show();
-    }
-
-
-    private void clearForm() {
-
-        lastState = new FormState();
-        lastState.crustPosition = spCrust.getSelectedItemPosition();
-        lastState.selectedSizeId = rgSize.getCheckedRadioButtonId();
-        lastState.cheeseChecked = cbCheese.isChecked();
-        lastState.mushroomChecked = cbMushroom.isChecked();
-        lastState.hamChecked = cbHam.isChecked();
-        lastState.quantity = sbQuantity.getProgress();
-        lastState.address = etAddress.getText().toString();
-        lastState.summaryText = tvSummary.getText().toString();
-
-
-        spCrust.setSelection(0);
-        rgSize.clearCheck();
-        cbCheese.setChecked(false);
-        cbMushroom.setChecked(false);
-        cbHam.setChecked(false);
-        sbQuantity.setProgress(0);
-        etAddress.setText("");
-        tvSummary.setText("");
-
-
-        etAddress.setError(null);
-
-
-        Snackbar.make(findViewById(R.id.main), R.string.cleared, Snackbar.LENGTH_LONG)
-                .setAction(R.string.undo, v -> restoreFormState())
-                .show();
-    }
-
-
-    private void restoreFormState() {
-        if (lastState != null) {
-            spCrust.setSelection(lastState.crustPosition);
-            if (lastState.selectedSizeId != -1) {
-                rgSize.check(lastState.selectedSizeId);
-            } else {
-                rgSize.clearCheck();
-            }
-            cbCheese.setChecked(lastState.cheeseChecked);
-            cbMushroom.setChecked(lastState.mushroomChecked);
-            cbHam.setChecked(lastState.hamChecked);
-            sbQuantity.setProgress(lastState.quantity);
-            etAddress.setText(lastState.address);
-            tvSummary.setText(lastState.summaryText);
-        }
-    }
-
-    private String buildSummary() {
         String size = "";
         int selectedId = rgSize.getCheckedRadioButtonId();
         if (selectedId == R.id.rbSmall) size = getString(R.string.size_small);
@@ -215,13 +136,27 @@ public class MainActivity extends AppCompatActivity {
         if (cbHam.isChecked()) extrasList.add(getString(R.string.extra_ham));
 
         String extras = extrasList.isEmpty() ? "brak" : String.join(", ", extrasList);
+        int quantity = Integer.parseInt(tvQuantityValue.getText().toString());
+        String address = etAddress.getText().toString().trim();
 
-        return getString(R.string.summary_format,
-                spCrust.getSelectedItem().toString(),
-                size,
-                extras,
-                Integer.parseInt(tvQuantityValue.getText().toString()),
-                etAddress.getText().toString().trim()
-        );
+        Intent intent = new Intent(this, SummaryActivity.class);
+        intent.putExtra(SummaryActivity.EXTRA_CRUST, crust);
+        intent.putExtra(SummaryActivity.EXTRA_SIZE, size);
+        intent.putExtra(SummaryActivity.EXTRA_EXTRAS, extras);
+        intent.putExtra(SummaryActivity.EXTRA_QUANTITY, quantity); // Przekazanie int
+        intent.putExtra(SummaryActivity.EXTRA_ADDRESS, address);
+
+        summaryLauncher.launch(intent);
+    }
+
+    private void clearForm() {
+        spCrust.setSelection(0);
+        rgSize.clearCheck();
+        cbCheese.setChecked(false);
+        cbMushroom.setChecked(false);
+        cbHam.setChecked(false);
+        sbQuantity.setProgress(1);
+        etAddress.setText("");
+        etAddress.setError(null);
     }
 }

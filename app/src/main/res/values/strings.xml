@@ -44,6 +44,12 @@
     <string name="clear_confirm_message">Wszystkie wpisane dane zostaną utracone.</string>
     <string name="cleared">Wyczyszczono formularz</string>
 
+    <string name="header_summary">Podsumowanie Zamówienia</string>
+    <string name="btn_share">Udostępnij zamówienie</string>
+    <string name="share_via">Udostępnij przez</string>
+    <string name="error_no_app">Brak aplikacji obsługującej udostępnianie</string>
+    <string name="returned_to_edit">Powrót do edycji danych</string>
+
     <string-array name="crusts">
         <item>-- wybierz rodzaj ciasta --</item>
         <item>Cienkie</item>
